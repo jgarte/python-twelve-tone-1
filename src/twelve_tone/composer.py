@@ -1,100 +1,127 @@
 import random
+from copy import deepcopy
+from itertools import pairwise
+from typing import List
+from typing import Optional
 
-import numpy as np
-
-from .midi import MIDIFile  # noqa
+import abjad
+from rich.console import Console
+from rich.table import Table
 
 
 class Composer(object):
-    matrix = np.zeros((12, 12), dtype=int)
+    def __init__(self, tone_row: Optional[List[int]] = None):
+        if tone_row is None:
+            self.tone_row = self.generate_tone_row()
+        else:
+            self.tone_row = tone_row
+        self.matrix: List[List[int]] = []
+        self.generate_twelve_tone_matrix()
+        self.table = Table(title="Print Matrix P0 Horizontally")
 
-    def compose(self, top_row=None):
-        # top_row
-        self._load_top_row(top_row)
-        # load first column
-        self._load_first_column()
-        # load rest of matrix
-        self._compute_matrix()
+    def print_matrix(self) -> None:
+        for tone_row in self.matrix:
+            print(tone_row)
 
+    def play_tone_row(self) -> None:
+        row = abjad.pcollections.TwelveToneRow(items=self.get_melody())
+        abjad.persist.as_midi(row, "tone_row.midi")
+
+    def print_matrix_rich(self) -> None:
+        for row in self.matrix:
+            # TODO: Support flats.
+            self.table.add_row(*[str(tone) for tone in row])
+        console = Console()
+        console.print(self.table)
+
+    def print_matrix_cli(self, accidentals: str = "sharps") -> None:
+        for tone in self.get_melody():
+            if accidentals == "sharps":
+                print(self.to_sharp(tone), end=" ")
+            elif accidentals == "flats":
+                print(self.to_flat(tone), end=" ")
+
+    def generate_tone_row(self) -> List[int]:
+        row = [tone for tone in range(12)]
+        random.shuffle(row)
+        return row
+
+    @staticmethod
+    def to_sharp(tone) -> str:
+        accidentals_map = {
+            0: "C",
+            1: "C♯",
+            2: "D",
+            3: "D♯",
+            4: "E",
+            5: "F",
+            6: "F♯",
+            7: "G",
+            8: "G♯",
+            9: "A",
+            10: "A♯",
+            11: "B",
+        }
+        return accidentals_map[tone]
+
+    @staticmethod
+    def to_flat(tone) -> str:
+        accidentals_map = {
+            0: "C",
+            1: "D♭",
+            2: "D",
+            3: "E♭",
+            4: "E",
+            5: "F",
+            6: "G♭",
+            7: "G",
+            8: "A♭",
+            9: "A",
+            10: "B♭",
+            11: "B",
+        }
+        return accidentals_map[tone]
+
+    @staticmethod
+    def to_midi(tone) -> int:
+        midi_map = {
+            0: 60,
+            1: 61,
+            2: 62,
+            3: 63,
+            4: 64,
+            5: 65,
+            6: 66,
+            7: 67,
+            8: 68,
+            9: 69,
+            10: 70,
+            11: 71,
+        }
+        return midi_map[tone]
+
+    def generate_twelve_tone_matrix(self) -> List[List[int]]:
+        tone_row = deepcopy(self.tone_row)
+        tone_row.reverse()
+        for tone in tone_row:
+            self.matrix.append(self.get_transposition(tone))
+        # put last element at the top
+        self.matrix.insert(0, self.matrix.pop())
         return self.matrix
 
-    def get_melody(self, row=0, column=None):
-        """
-        Returns a tone row that can be used
-        as a 12 tone melody.
+    def get_melody(self) -> List[int]:
+        return random.choice(self.matrix)
 
-        You can specify a specific row or column,
-        otherwise the top most tone row will be returned.
-        """
-        melody = []
-        tone_row = self._get_tone_row(row, column)
+    def get_intervals(self) -> List[int]:
+        intervals = [y - x for (x, y) in pairwise(self.tone_row)]
+        assert len(intervals) == 11
+        return intervals
 
-        for cell in tone_row:
-            melody.append(self.get_pitch(int(cell)))
-        return melody
-
-    def _get_tone_row(self, row, column):
-        if column:
-            return self.matrix[:, column]
-        return self.matrix[row]
-
-    def save_to_midi(self, tone_rows=1, filename='example.mid'):
-        m = MIDIFile(filename=filename)
-        for index in range(0, tone_rows):
-            row = self.matrix[index]
-            m.create(row)
-
-    def get_pitch(self, cell):
-        pitch_map = {
-            '1': 'C',
-            '2': 'C# / Db',
-            '3': 'D',
-            '4': 'D# / Eb',
-            '5': 'E',
-            '6': 'F',
-            '7': 'F# / Gb',
-            '8': 'G',
-            '9': 'G# / Ab',
-            '10': 'A',
-            '11': 'A# / Bb',
-            '12': 'B'
-        }
-
-        return pitch_map.get(str(cell))
-
-    def _load_top_row(self, top_row):
-        row = random.sample(range(1, 13), 12)
-        # load top row of matrix rows
-        for x in range(0, 12):
-            self.matrix[0][x] = top_row[x] if top_row else row[x]
-
-    def _load_first_column(self):
-        # load first column
-        for x in range(0, 11):
-            self._load_col_cell(x)
-
-    def _load_col_cell(self, x):
-        diff = (self.matrix[0][x + 1] - self.matrix[0][x])
-        opposite = diff * -1
-        result = opposite + self.matrix[x][0]
-        if result in range(1, 13):
-            self.matrix[x + 1][0] = result
-        else:
-            self.matrix[x + 1][0] = self._transform_cell(result)
-
-    def _compute_matrix(self):
-        for x in range(1, 12):
-            for y in range(0, 11):
-                calc = (self.matrix[x][y] - self.matrix[x - 1][y]) \
-                    + self.matrix[x - 1][y + 1]
-                if calc not in range(1, 13):
-                    calc = self._transform_cell(calc)
-                self.matrix[x][y + 1] = calc
-
-    def _transform_cell(self, cell):
-        if cell in range(1, 13):
-            return cell
-        if cell < 0 or cell == 0:
-            return self._transform_cell(cell + 12)
-        else:
-            return self._transform_cell(cell - 12)
+    def get_transposition(self, root) -> List[int]:
+        root = root % 12
+        tone_row = [root]
+        for interval in self.get_intervals():
+            root = (root + interval) % 12
+            tone_row.append(root)
+        assert len(tone_row) == 12
+        return tone_row
