@@ -20,7 +20,8 @@ import click
 from twelve_tone.composer import Composer
 
 
-@click.command()
+# TODO: Use argparse instead?
+@click.command
 def main():
     c = Composer()
-    click.echo(c.play_tone_row())
+    click.echo(c.print_tone_row())

@@ -1,12 +1,20 @@
 import random
 from copy import deepcopy
 from itertools import pairwise
+from functools import lru_cache
 from typing import List
 from typing import Optional
 
-import abjad
 from rich.console import Console
-from rich.table import Table
+from rich.text import Text
+
+TwelveToneRow = List[int]
+TwelveToneRowIntervals = List[int]
+TwelveToneMatrix = List[List[int]]
+SharpTone = str
+FlatTone = str
+MidiNote = int
+Tone = int
 
 
 class Composer(object):
@@ -16,38 +24,33 @@ class Composer(object):
         else:
             self.tone_row = tone_row
         self.matrix: List[List[int]] = []
-        self.generate_twelve_tone_matrix()
-        self.table = Table(title="Print Matrix P0 Horizontally")
+        self._generate_twelve_tone_matrix()
 
-    def print_matrix(self) -> None:
+    def print_matrix_rows(self) -> None:
         for tone_row in self.matrix:
-            print(tone_row)
+            for tone in tone_row:
+                print(tone, end=" ")
+            print()
 
-    def play_tone_row(self) -> None:
-        row = abjad.pcollections.TwelveToneRow(items=self.get_melody())
-        abjad.persist.as_midi(row, "tone_row.midi")
-
-    def print_matrix_rich(self) -> None:
-        for row in self.matrix:
-            # TODO: Support flats.
-            self.table.add_row(*[str(tone) for tone in row])
+    def print_tone_row(
+        self, accidentals: str = "sharps", text_color: str = "cornsilk1"
+    ) -> None:
         console = Console()
-        console.print(self.table)
-
-    def print_matrix_cli(self, accidentals: str = "sharps") -> None:
         for tone in self.get_melody():
             if accidentals == "sharps":
-                print(self.to_sharp(tone), end=" ")
+                tone_row = Text(self.to_sharp(tone))
             elif accidentals == "flats":
-                print(self.to_flat(tone), end=" ")
+                tone_row = Text(self.to_flat(tone))
+            tone_row.stylize(text_color, 0, 6)
+            console.print(tone_row, end=" ")
 
-    def generate_tone_row(self) -> List[int]:
+    def generate_tone_row(self) -> TwelveToneRow:
         row = [tone for tone in range(12)]
         random.shuffle(row)
         return row
 
     @staticmethod
-    def to_sharp(tone) -> str:
+    def to_sharp(tone) -> SharpTone:
         accidentals_map = {
             0: "C",
             1: "C♯",
@@ -65,7 +68,7 @@ class Composer(object):
         return accidentals_map[tone]
 
     @staticmethod
-    def to_flat(tone) -> str:
+    def to_flat(tone) -> FlatTone:
         accidentals_map = {
             0: "C",
             1: "D♭",
@@ -83,7 +86,7 @@ class Composer(object):
         return accidentals_map[tone]
 
     @staticmethod
-    def to_midi(tone) -> int:
+    def to_midi(tone) -> MidiNote:
         midi_map = {
             0: 60,
             1: 61,
@@ -100,24 +103,48 @@ class Composer(object):
         }
         return midi_map[tone]
 
-    def generate_twelve_tone_matrix(self) -> List[List[int]]:
-        tone_row = deepcopy(self.tone_row)
-        tone_row.reverse()
-        for tone in tone_row:
-            self.matrix.append(self.get_transposition(tone))
-        # put last element at the top
-        self.matrix.insert(0, self.matrix.pop())
-        return self.matrix
+    def _generate_twelve_tone_matrix(self) -> None:
+        def get_first_matrix_column() -> TwelveToneRow:
+            return self.get_inversion_row(self.tone_row[0])
 
-    def get_melody(self) -> List[int]:
+        for root in get_first_matrix_column():
+            self.matrix.append(self.get_transposition(root))
+
+    def get_inversion_row(self, root) -> TwelveToneRow:
+        root = root % 12
+        tone_row = [root]
+        for interval in self.get_intervals_inverted():
+            root = (root + interval) % 12
+            tone_row.append(root)
+        assert len(tone_row) == 12
+        return tone_row
+
+    def get_intervals_inverted(self) -> TwelveToneRowIntervals:
+        def is_positive(n: int) -> bool:
+            if n >= 0:
+                return True
+            else:
+                return False
+
+        intervals = []
+        for i in self.get_intervals():
+            if is_positive(i):
+                intervals.append(-abs(i))
+            else:
+                intervals.append(abs(i))
+        assert len(intervals) == 11
+        return intervals
+
+    def get_melody(self) -> TwelveToneRow:
         return random.choice(self.matrix)
 
-    def get_intervals(self) -> List[int]:
+    @lru_cache
+    def get_intervals(self) -> TwelveToneRowIntervals:
         intervals = [y - x for (x, y) in pairwise(self.tone_row)]
         assert len(intervals) == 11
         return intervals
 
-    def get_transposition(self, root) -> List[int]:
+    def get_transposition(self, root) -> TwelveToneRow:
         root = root % 12
         tone_row = [root]
         for interval in self.get_intervals():
