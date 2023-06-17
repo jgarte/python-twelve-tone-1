@@ -1,29 +1,27 @@
 import random
-from copy import deepcopy
 from itertools import pairwise
 from functools import lru_cache
 from typing import List
-from typing import Optional
 
 from rich.console import Console
 from rich.text import Text
 
 TwelveToneRow = List[int]
 TwelveToneRowIntervals = List[int]
-TwelveToneMatrix = List[List[int]]
+TwelveToneMatrix = List[TwelveToneRow]
 SharpTone = str
 FlatTone = str
 MidiNote = int
 Tone = int
 
 
-class Composer(object):
-    def __init__(self, tone_row: Optional[List[int]] = None):
+class Composer:
+    def __init__(self, tone_row: TwelveToneRow = None):
         if tone_row is None:
             self.tone_row = self.generate_tone_row()
         else:
             self.tone_row = tone_row
-        self.matrix: List[List[int]] = []
+        self.matrix: TwelveToneMatrix = []
         self._generate_twelve_tone_matrix()
 
     def print_matrix_rows(self) -> None:
@@ -120,18 +118,9 @@ class Composer(object):
         return tone_row
 
     def get_intervals_inverted(self) -> TwelveToneRowIntervals:
-        def is_positive(n: int) -> bool:
-            if n >= 0:
-                return True
-            else:
-                return False
-
         intervals = []
         for i in self.get_intervals():
-            if is_positive(i):
-                intervals.append(-abs(i))
-            else:
-                intervals.append(abs(i))
+            intervals.append(-i)
         assert len(intervals) == 11
         return intervals
 
