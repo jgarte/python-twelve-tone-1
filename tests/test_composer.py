@@ -34,11 +34,11 @@ class TestMatrix(unittest.TestCase):
 
     def test_master(self):
         row = [3, 1, 9, 5, 4, 6, 8, 7, 12, 10, 11, 2]
-        m = Composer().compose(top_row=row)
-        self.assertEqual(m[0][0], 3)
-        self.assertEqual(m[11][0], 4)
-        self.assertEqual(m[0][11], 2)
-        self.assertEqual(m[11][11], 3)
+        m = Composer(tone_row=row)
+        self.assertEqual(m.matrix[0][0], 3)
+        self.assertEqual(m.matrix[11][0], 4)
+        self.assertEqual(m.matrix[0][11], 2)
+        self.assertEqual(m.matrix[11][11], 3)
         # check for 3s all the way diagonal
         for x in range(0, 12):
-            self.assertEqual(m[x][x], 3)
+            self.assertEqual(m.matrix[x][x], 3)
