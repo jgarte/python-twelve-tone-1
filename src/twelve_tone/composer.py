@@ -1,6 +1,5 @@
 import random
 from itertools import pairwise
-from functools import lru_cache
 from typing import List
 
 from rich.console import Console
@@ -127,7 +126,6 @@ class Composer:
     def get_melody(self) -> TwelveToneRow:
         return random.choice(self.matrix)
 
-    @lru_cache
     def get_intervals(self) -> TwelveToneRowIntervals:
         intervals = [y - x for (x, y) in pairwise(self.tone_row)]
         assert len(intervals) == 11
